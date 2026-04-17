@@ -1,0 +1,72 @@
+services:
+  database:
+    build:
+      context: ..
+      dockerfile: golang-trainning-infra/docker/database/Dockerfile
+    platform: linux/amd64
+    container_name: golang-trainning-database
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_as_ci --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: golang_trainning
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+      APP_ENV: docker
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ../golang-trainning-database:/database
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio
+    container_name: golang-trainning-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  backend:
+    build:
+      context: ..
+      dockerfile: golang-trainning-infra/docker/backend/Dockerfile
+    container_name: golang-trainning-backend
+    environment:
+      APP_ENV: docker
+    volumes:
+      - ../golang-trainning-backend:/app
+      - ../golang-trainning-database:/database
+    ports:
+      - "8080:8080"
+      - "3001:3000"
+    depends_on:
+      database:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: golang-trainning-infra/docker/frontend/Dockerfile
+    container_name: golang-trainning-frontend
+    volumes:
+      - ../golang-trainning-frontend:/app
+    ports:
+      - "8081:8080"
+      - "3000:3000"
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  minio_data:
